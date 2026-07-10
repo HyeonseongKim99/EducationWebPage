@@ -36,15 +36,6 @@ function htmlEscape(value) {
     .replaceAll('"', '&quot;');
 }
 
-function normalizeRelativePath(value, label) {
-  if (typeof value !== 'string' || !value.trim()) fail(`${label} 경로가 필요합니다.`);
-  const normalized = value.trim().replaceAll('\\', '/');
-  if (normalized.startsWith('/') || normalized.split('/').some((part) => !part || part === '.' || part === '..')) {
-    fail(`${label} 경로가 안전하지 않습니다: ${value}`);
-  }
-  return normalized;
-}
-
 function validateDateTime(value, label, slug) {
   if (value === undefined) return null;
   if (typeof value !== 'string' || !dateTimePattern.test(value) || Number.isNaN(Date.parse(value))) {
@@ -129,19 +120,6 @@ async function readCourse(courseDir, slug) {
     fail(`availableUntil은 availableFrom보다 뒤여야 합니다: ${slug}`);
   }
 
-  const featuredDownloads = config.featuredDownloads ?? [];
-  if (!Array.isArray(featuredDownloads)) fail(`featuredDownloads는 배열이어야 합니다: ${slug}`);
-  const normalizedDownloads = featuredDownloads.map((item, index) => {
-    if (!item || typeof item !== 'object') fail(`featuredDownloads[${index}] 형식이 잘못되었습니다: ${slug}`);
-    if (typeof item.label !== 'string' || !item.label.trim()) fail(`대표 다운로드 label이 필요합니다: ${slug}`);
-    if (!['materials', 'code'].includes(item.type)) fail(`대표 다운로드 type이 잘못되었습니다: ${slug}`);
-    const relativePath = normalizeRelativePath(item.path, `featuredDownloads[${index}]`);
-    const availableFiles = item.type === 'materials' ? materials : code;
-    const normalizedFiles = new Set(availableFiles.map((file) => file.replaceAll(path.sep, '/')));
-    if (!normalizedFiles.has(relativePath)) fail(`대표 다운로드 파일을 찾을 수 없습니다: ${slug}/${relativePath}`);
-    return {label: item.label.trim(), type: item.type, path: relativePath};
-  });
-
   if (config.access === 'protected') {
     const passwordFile = path.join(authPath, `${slug}.htpasswd`);
     const passwordStat = await fs.lstat(passwordFile).catch(() => null);
@@ -163,7 +141,6 @@ async function readCourse(courseDir, slug) {
     access: config.access,
     availableFrom,
     availableUntil,
-    featuredDownloads: normalizedDownloads,
     docsDir,
     materialsDir,
     codeDir,
@@ -195,22 +172,6 @@ function fileList(title, description, urlPrefix, files) {
     ...files.map((file) => {
       const {extension, icon} = fileKind(file);
       return `  <a class="download-card" href="${urlPrefix}/${encodeUrlPath(file)}"><span class="download-icon" aria-hidden="true">${icon}</span><span class="download-info"><strong>${htmlEscape(file)}</strong><small>${extension} 파일</small></span><span class="download-action">다운로드 ↓</span></a>`;
-    }),
-    '</div>',
-    '',
-  ].join('\n');
-}
-
-function featuredDownloadList(course) {
-  if (course.featuredDownloads.length === 0) return '';
-  return [
-    '## 전체 다운로드',
-    '',
-    '<div class="featured-downloads">',
-    ...course.featuredDownloads.map((download) => {
-      const segment = download.type === 'materials' ? 'materials' : 'code';
-      const href = `/courses/${course.slug}/${segment}/${encodeUrlPath(download.path)}`;
-      return `  <a class="featured-download-card" href="${href}"><span aria-hidden="true">📦</span><span><strong>${htmlEscape(download.label)}</strong><small>${htmlEscape(download.path)}</small></span><span class="download-action">한 번에 받기 ↓</span></a>`;
     }),
     '</div>',
     '',
@@ -270,7 +231,6 @@ async function writeDocs(courses) {
       course.access === 'protected' ? `<a href="/logout/${course.slug}">로그아웃</a>` : '',
       '',
       availabilityText(course),
-      featuredDownloadList(course),
       fileList('강의 자료', '강의 슬라이드와 참고 자료를 내려받을 수 있습니다.', `/courses/${course.slug}/materials`, course.materials),
       fileList('실습 코드', '실습에 필요한 코드와 예제 파일을 내려받을 수 있습니다.', `/courses/${course.slug}/code`, course.code),
       '## 강의 문서',

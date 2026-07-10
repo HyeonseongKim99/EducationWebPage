@@ -10,19 +10,6 @@
     "order": {"type": "integer"},
     "access": {"enum": ["public", "protected"]},
     "availableFrom": {"type": "string", "format": "date-time"},
-    "availableUntil": {"type": "string", "format": "date-time"},
-    "featuredDownloads": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["label", "type", "path"],
-        "properties": {
-          "label": {"type": "string", "minLength": 1},
-          "type": {"enum": ["materials", "code"]},
-          "path": {"type": "string", "minLength": 1}
-        }
-      }
-    }
+    "availableUntil": {"type": "string", "format": "date-time"}
   }
 }
