@@ -1,0 +1,110 @@
+import assert from 'node:assert/strict';
+import {execFile} from 'node:child_process';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import {promisify} from 'node:util';
+import test from 'node:test';
+
+const execFileAsync = promisify(execFile);
+const projectRoot = path.resolve(import.meta.dirname, '..');
+const script = path.join(projectRoot, 'scripts', 'prepare-content.mjs');
+
+async function fixture({slug = 'course-one', access = 'public', malformed = false} = {}) {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'education-web-'));
+  const courses = path.join(root, 'courses');
+  const auth = path.join(root, 'auth');
+  const course = path.join(courses, slug);
+  await fs.mkdir(path.join(course, 'docs'), {recursive: true});
+  await fs.mkdir(path.join(course, 'materials'), {recursive: true});
+  await fs.mkdir(path.join(course, 'code'), {recursive: true});
+  await fs.mkdir(auth, {recursive: true});
+  await fs.writeFile(
+    path.join(course, 'course.json'),
+    malformed ? '{bad json' : JSON.stringify({title: '테스트 수업', description: '설명', order: 1, access}),
+  );
+  await fs.writeFile(path.join(course, 'docs', 'intro.md'), '---\nslug: /unsafe\ntitle: 소개\n---\n\n본문');
+  await fs.writeFile(path.join(course, 'docs', 'diagram.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>');
+  await fs.writeFile(path.join(course, 'materials', 'lecture.txt'), 'material');
+  await fs.writeFile(path.join(course, 'code', 'hello.py'), 'print("hello")');
+  if (access === 'protected') {
+    await fs.writeFile(
+      path.join(auth, `${slug}.htpasswd`),
+      'student:$2y$05$123456789012345678901uHh1F7Vb1mYOfE7pIzRzYHkP8mP5xSaa\n',
+    );
+  }
+  return {root, courses, auth, course};
+}
+
+async function run(paths) {
+  const generated = path.join(paths.root, 'generated');
+  const nginx = path.join(paths.root, 'nginx.conf');
+  const result = await execFileAsync(process.execPath, [script], {
+    cwd: projectRoot,
+    env: {
+      ...process.env,
+      COURSES_PATH: paths.courses,
+      AUTH_PATH: paths.auth,
+      GENERATED_DIR: generated,
+      NGINX_CONFIG_PATH: nginx,
+      SITE_ROOT: '/srv/site',
+    },
+  });
+  return {generated, nginx, ...result};
+}
+
+test('공개 및 보호 수업 설정을 안전한 경로로 생성한다', async (t) => {
+  const publicPaths = await fixture();
+  t.after(() => fs.rm(publicPaths.root, {recursive: true, force: true}));
+  const publicResult = await run(publicPaths);
+  const publicNginx = await fs.readFile(publicResult.nginx, 'utf8');
+  assert.match(publicNginx, /location \/files\/course-one\//);
+  assert.doesNotMatch(publicNginx, /auth_basic "테스트 수업"/);
+  const generatedDoc = await fs.readFile(
+    path.join(publicResult.generated, 'docs', 'course-one', 'intro.md'), 'utf8',
+  );
+  assert.doesNotMatch(generatedDoc, /slug: \/unsafe/);
+  assert.equal(
+    await fs.readFile(path.join(publicResult.generated, 'docs', 'course-one', 'diagram.svg'), 'utf8'),
+    '<svg xmlns="http://www.w3.org/2000/svg"/>',
+  );
+
+  const protectedPaths = await fixture({slug: 'secure-course', access: 'protected'});
+  t.after(() => fs.rm(protectedPaths.root, {recursive: true, force: true}));
+  const protectedResult = await run(protectedPaths);
+  const protectedNginx = await fs.readFile(protectedResult.nginx, 'utf8');
+  assert.match(protectedNginx, /auth_basic "테스트 수업"/);
+  assert.match(protectedNginx, /secure-course\.htpasswd/);
+  assert.equal((protectedNginx.match(/auth_basic_user_file/g) || []).length, 3);
+});
+
+test('잘못된 slug와 JSON을 거부한다', async (t) => {
+  const badSlug = await fixture({slug: 'Bad Course'});
+  t.after(() => fs.rm(badSlug.root, {recursive: true, force: true}));
+  await assert.rejects(run(badSlug), /잘못된 수업 식별자/);
+
+  const badJson = await fixture({malformed: true});
+  t.after(() => fs.rm(badJson.root, {recursive: true, force: true}));
+  await assert.rejects(run(badJson), /course\.json 형식/);
+});
+
+test('보호 수업의 인증 파일 누락을 거부한다', async (t) => {
+  const paths = await fixture({access: 'protected'});
+  t.after(() => fs.rm(paths.root, {recursive: true, force: true}));
+  await fs.rm(path.join(paths.auth, 'course-one.htpasswd'));
+  await assert.rejects(run(paths), /htpasswd 파일이 없습니다/);
+});
+
+test('NAS 콘텐츠 안의 심볼릭 링크를 거부한다', async (t) => {
+  const paths = await fixture();
+  t.after(() => fs.rm(paths.root, {recursive: true, force: true}));
+  const outside = path.join(paths.root, 'outside');
+  await fs.mkdir(outside);
+  try {
+    await fs.symlink(outside, path.join(paths.course, 'code', 'linked'), 'junction');
+  } catch (error) {
+    if (error.code === 'EPERM') return t.skip('이 Windows 환경에서 심볼릭 링크 생성 권한이 없습니다.');
+    throw error;
+  }
+  await assert.rejects(run(paths), /심볼릭 링크는 허용되지 않습니다/);
+});

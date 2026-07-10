@@ -1,0 +1,48 @@
+:root {
+  --ifm-color-primary: #155e75;
+  --ifm-color-primary-dark: #13556a;
+  --ifm-color-primary-darker: #125064;
+  --ifm-color-primary-darkest: #0f4252;
+  --ifm-color-primary-light: #176882;
+  --ifm-color-primary-lighter: #186d88;
+  --ifm-color-primary-lightest: #1b7b9a;
+  --ifm-code-font-size: 95%;
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #67e8f9;
+  --ifm-background-color: #071820;
+}
+
+.hero--primary {
+  background: linear-gradient(135deg, #083344, #155e75 55%, #0e7490);
+}
+
+.course-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+  margin: 2rem 0;
+}
+
+.course-card {
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 12px;
+  padding: 1.25rem;
+  background: var(--ifm-card-background-color);
+  box-shadow: 0 4px 18px rgb(15 23 42 / 8%);
+}
+
+.course-card h2 {
+  margin-bottom: 0.5rem;
+}
+
+.course-badge {
+  display: inline-block;
+  margin-bottom: 0.75rem;
+  border-radius: 999px;
+  padding: 0.2rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  background: var(--ifm-color-emphasis-200);
+}

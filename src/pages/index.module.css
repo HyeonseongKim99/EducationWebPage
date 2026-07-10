@@ -1,0 +1,10 @@
+.hero {
+  padding: 5rem 0;
+  text-align: center;
+}
+
+@media screen and (max-width: 996px) {
+  .hero {
+    padding: 3rem 1rem;
+  }
+}

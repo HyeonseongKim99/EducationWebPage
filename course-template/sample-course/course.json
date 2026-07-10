@@ -1,0 +1,6 @@
+{
+  "title": "샘플 공개 수업",
+  "description": "NAS 수업 디렉터리의 작성 형식을 보여 주는 공개 예시입니다.",
+  "order": 10,
+  "access": "public"
+}

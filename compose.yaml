@@ -1,0 +1,15 @@
+services:
+  education-web:
+    image: ghcr.io/hyeonseongkim99/educationwebpage:latest
+    container_name: education-web
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    volumes:
+      - "${COURSES_PATH}:/srv/courses:ro"
+      - "${AUTH_PATH}:/srv/auth:ro"
+      - "${GENERATED_PATH}:/srv/site"
+    environment:
+      SITE_URL: "${SITE_URL:-http://localhost}"
+    security_opt:
+      - no-new-privileges:true
