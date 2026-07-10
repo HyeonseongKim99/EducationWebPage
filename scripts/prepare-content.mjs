@@ -120,8 +120,9 @@ async function readCourse(courseDir, slug) {
   const docFiles = await scanTree(docsDir);
   const docs = docFiles.filter((file) => path.extname(file).toLowerCase() === '.md');
   if (docs.length === 0) fail(`Markdown 강의 문서가 하나 이상 필요합니다: ${slug}`);
-  const materials = await scanTree(materialsDir);
-  const code = await scanTree(codeDir);
+  const isOperatorGuide = (file) => path.basename(file).toLowerCase() === 'readme.txt';
+  const materials = (await scanTree(materialsDir)).filter((file) => !isOperatorGuide(file));
+  const code = (await scanTree(codeDir)).filter((file) => !isOperatorGuide(file));
   const availableFrom = validateDateTime(config.availableFrom, 'availableFrom', slug);
   const availableUntil = validateDateTime(config.availableUntil, 'availableUntil', slug);
   if (availableFrom && availableUntil && Date.parse(availableFrom) >= Date.parse(availableUntil)) {
@@ -173,14 +174,29 @@ async function readCourse(courseDir, slug) {
   };
 }
 
-function fileList(title, urlPrefix, files) {
-  const lines = [`## ${title}`, ''];
+function fileKind(file) {
+  const extension = path.extname(file).slice(1).toUpperCase();
+  const icons = {
+    ZIP: '📦', RAR: '📦', '7Z': '📦', GZ: '📦',
+    PDF: '📕', PPT: '📊', PPTX: '📊',
+    DOC: '📄', DOCX: '📄', TXT: '📄',
+    XLS: '📈', XLSX: '📈', CSV: '📈',
+    PY: '💻', JS: '💻', TS: '💻', C: '💻', CPP: '💻', H: '💻', JAVA: '💻',
+  };
+  return {extension: extension || 'FILE', icon: icons[extension] || '📎'};
+}
+
+function fileList(title, description, urlPrefix, files) {
+  const lines = [`## ${title}`, '', description, ''];
   if (files.length === 0) return [...lines, '_등록된 파일이 없습니다._', ''].join('\n');
   return [
     ...lines,
-    '<ul>',
-    ...files.map((file) => `  <li><a href="${urlPrefix}/${encodeUrlPath(file)}">${htmlEscape(file)}</a></li>`),
-    '</ul>',
+    '<div class="download-grid">',
+    ...files.map((file) => {
+      const {extension, icon} = fileKind(file);
+      return `  <a class="download-card" href="${urlPrefix}/${encodeUrlPath(file)}"><span class="download-icon" aria-hidden="true">${icon}</span><span class="download-info"><strong>${htmlEscape(file)}</strong><small>${extension} 파일</small></span><span class="download-action">다운로드 ↓</span></a>`;
+    }),
+    '</div>',
     '',
   ].join('\n');
 }
@@ -194,7 +210,7 @@ function featuredDownloadList(course) {
     ...course.featuredDownloads.map((download) => {
       const segment = download.type === 'materials' ? 'materials' : 'code';
       const href = `/courses/${course.slug}/${segment}/${encodeUrlPath(download.path)}`;
-      return `  <a class="button button--primary button--lg" href="${href}">${htmlEscape(download.label)}</a>`;
+      return `  <a class="featured-download-card" href="${href}"><span aria-hidden="true">📦</span><span><strong>${htmlEscape(download.label)}</strong><small>${htmlEscape(download.path)}</small></span><span class="download-action">한 번에 받기 ↓</span></a>`;
     }),
     '</div>',
     '',
@@ -255,8 +271,8 @@ async function writeDocs(courses) {
       '',
       availabilityText(course),
       featuredDownloadList(course),
-      fileList('강의 자료', `/courses/${course.slug}/materials`, course.materials),
-      fileList('실습 코드', `/courses/${course.slug}/code`, course.code),
+      fileList('강의 자료', '강의 슬라이드와 참고 자료를 내려받을 수 있습니다.', `/courses/${course.slug}/materials`, course.materials),
+      fileList('실습 코드', '실습에 필요한 코드와 예제 파일을 내려받을 수 있습니다.', `/courses/${course.slug}/code`, course.code),
       '## 강의 문서',
       '',
       ...course.docs.map((file) => {

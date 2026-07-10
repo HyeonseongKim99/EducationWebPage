@@ -27,6 +27,7 @@ async function fixture({slug = 'course-one', access = 'public', malformed = fals
   await fs.writeFile(path.join(course, 'docs', 'diagram.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>');
   await fs.writeFile(path.join(course, 'materials', 'lecture.txt'), 'material');
   await fs.writeFile(path.join(course, 'materials', '전체자료.zip'), 'zip');
+  await fs.writeFile(path.join(course, 'materials', 'README.txt'), '운영자용 폴더 안내');
   await fs.writeFile(path.join(course, 'code', 'hello.py'), 'print("hello")');
   if (access === 'protected') {
     await fs.writeFile(
@@ -92,6 +93,8 @@ test('배포 기간과 대표 다운로드를 생성한다', async (t) => {
   const index = await fs.readFile(path.join(result.generated, 'docs', 'course-one', 'index.md'), 'utf8');
   assert.match(index, /전체 다운로드/);
   assert.match(index, /전체자료\.zip/);
+  assert.match(index, /download-card/);
+  assert.doesNotMatch(index, /README\.txt/);
   const runtime = JSON.parse(await fs.readFile(path.join(result.generated, 'runtime-courses.json'), 'utf8'));
   assert.equal(runtime[0].availableUntil, '2026-07-31T18:00:00+09:00');
 });
