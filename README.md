@@ -79,6 +79,8 @@ openssl rand -base64 48
 5. 내부에서 `http://NAS주소:8080/healthz`를 열어 `ok`가 표시되는지 확인합니다.
 6. 새 이미지가 게시되면 Container Manager에서 이미지를 다시 받은 뒤 프로젝트를 재생성합니다.
 
+Synology에서는 `pull_policy` 옵션을 추가하지 않습니다. 최신 이미지가 필요하면 기존 이미지를 제거한 뒤 프로젝트를 다시 빌드하거나, SSH에서 `sudo docker pull ghcr.io/hyeonseongkim99/educationwebpage:latest`를 실행한 뒤 프로젝트를 재생성합니다.
+
 주요 환경 값:
 
 | 이름 | 기본값/예시 | 설명 |
