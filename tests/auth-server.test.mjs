@@ -90,6 +90,7 @@ test('로그인 한 번으로 보호 수업 세션을 발급하고 확인한다'
     redirect: 'manual',
   });
   assert.equal(logout.status, 302);
+  assert.equal(logout.headers.get('location'), '/login/secure-course');
   assert.match(logout.headers.get('set-cookie'), /Max-Age=0/);
   assert.equal(logout.headers.get('clear-site-data'), '"cache"');
 });

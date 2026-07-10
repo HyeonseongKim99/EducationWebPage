@@ -195,7 +195,7 @@ const server = http.createServer(async (req, res) => {
     if (action === 'logout') {
       const secure = isSecureRequest(req) ? '; Secure' : '';
       res.writeHead(302, {
-        Location: '/',
+        Location: `/login/${slug}`,
         'Set-Cookie': `${cookieName(slug)}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure}`,
         'Cache-Control': 'no-store',
         'Clear-Site-Data': '"cache"',
