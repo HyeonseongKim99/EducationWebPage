@@ -12,16 +12,12 @@ const nginxConfigPath = path.resolve(
 );
 const siteRoot = process.env.SITE_ROOT || '/srv/site';
 const runtimeCoursesPath = process.env.RUNTIME_COURSES_PATH || '/srv/courses';
-const runtimeAuthPath = process.env.RUNTIME_AUTH_PATH || '/srv/auth';
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const bcryptPattern = /^[^:\r\n]+:\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/;
+const dateTimePattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/;
 
 function fail(message) {
   throw new Error(message);
-}
-
-function escapeNginx(value) {
-  return value.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
 }
 
 function encodeUrlPath(relativePath) {
@@ -38,6 +34,23 @@ function htmlEscape(value) {
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;');
+}
+
+function normalizeRelativePath(value, label) {
+  if (typeof value !== 'string' || !value.trim()) fail(`${label} 경로가 필요합니다.`);
+  const normalized = value.trim().replaceAll('\\', '/');
+  if (normalized.startsWith('/') || normalized.split('/').some((part) => !part || part === '.' || part === '..')) {
+    fail(`${label} 경로가 안전하지 않습니다: ${value}`);
+  }
+  return normalized;
+}
+
+function validateDateTime(value, label, slug) {
+  if (value === undefined) return null;
+  if (typeof value !== 'string' || !dateTimePattern.test(value) || Number.isNaN(Date.parse(value))) {
+    fail(`${label}은 시간대가 포함된 ISO 8601 형식이어야 합니다: ${slug}`);
+  }
+  return value;
 }
 
 async function ensureDirectory(target, label) {
@@ -109,6 +122,24 @@ async function readCourse(courseDir, slug) {
   if (docs.length === 0) fail(`Markdown 강의 문서가 하나 이상 필요합니다: ${slug}`);
   const materials = await scanTree(materialsDir);
   const code = await scanTree(codeDir);
+  const availableFrom = validateDateTime(config.availableFrom, 'availableFrom', slug);
+  const availableUntil = validateDateTime(config.availableUntil, 'availableUntil', slug);
+  if (availableFrom && availableUntil && Date.parse(availableFrom) >= Date.parse(availableUntil)) {
+    fail(`availableUntil은 availableFrom보다 뒤여야 합니다: ${slug}`);
+  }
+
+  const featuredDownloads = config.featuredDownloads ?? [];
+  if (!Array.isArray(featuredDownloads)) fail(`featuredDownloads는 배열이어야 합니다: ${slug}`);
+  const normalizedDownloads = featuredDownloads.map((item, index) => {
+    if (!item || typeof item !== 'object') fail(`featuredDownloads[${index}] 형식이 잘못되었습니다: ${slug}`);
+    if (typeof item.label !== 'string' || !item.label.trim()) fail(`대표 다운로드 label이 필요합니다: ${slug}`);
+    if (!['materials', 'code'].includes(item.type)) fail(`대표 다운로드 type이 잘못되었습니다: ${slug}`);
+    const relativePath = normalizeRelativePath(item.path, `featuredDownloads[${index}]`);
+    const availableFiles = item.type === 'materials' ? materials : code;
+    const normalizedFiles = new Set(availableFiles.map((file) => file.replaceAll(path.sep, '/')));
+    if (!normalizedFiles.has(relativePath)) fail(`대표 다운로드 파일을 찾을 수 없습니다: ${slug}/${relativePath}`);
+    return {label: item.label.trim(), type: item.type, path: relativePath};
+  });
 
   if (config.access === 'protected') {
     const passwordFile = path.join(authPath, `${slug}.htpasswd`);
@@ -129,6 +160,9 @@ async function readCourse(courseDir, slug) {
     description: config.description.trim(),
     order: config.order,
     access: config.access,
+    availableFrom,
+    availableUntil,
+    featuredDownloads: normalizedDownloads,
     docsDir,
     materialsDir,
     codeDir,
@@ -149,6 +183,31 @@ function fileList(title, urlPrefix, files) {
     '</ul>',
     '',
   ].join('\n');
+}
+
+function featuredDownloadList(course) {
+  if (course.featuredDownloads.length === 0) return '';
+  return [
+    '## 전체 다운로드',
+    '',
+    '<div class="featured-downloads">',
+    ...course.featuredDownloads.map((download) => {
+      const segment = download.type === 'materials' ? 'materials' : 'code';
+      const href = `/courses/${course.slug}/${segment}/${encodeUrlPath(download.path)}`;
+      return `  <a class="button button--primary button--lg" href="${href}">${htmlEscape(download.label)}</a>`;
+    }),
+    '</div>',
+    '',
+  ].join('\n');
+}
+
+function availabilityText(course) {
+  if (!course.availableFrom && !course.availableUntil) return '';
+  const lines = ['## 배포 기간', ''];
+  if (course.availableFrom) lines.push(`- 시작: ${course.availableFrom}`);
+  if (course.availableUntil) lines.push(`- 종료: ${course.availableUntil}`);
+  lines.push('');
+  return lines.join('\n');
 }
 
 async function writeDocs(courses) {
@@ -192,8 +251,12 @@ async function writeDocs(courses) {
       '',
       course.description,
       '',
-      fileList('강의 자료', `/files/${course.slug}`, course.materials),
-      fileList('실습 코드', `/code/${course.slug}`, course.code),
+      course.access === 'protected' ? `<a href="/logout/${course.slug}">로그아웃</a>` : '',
+      '',
+      availabilityText(course),
+      featuredDownloadList(course),
+      fileList('강의 자료', `/courses/${course.slug}/materials`, course.materials),
+      fileList('실습 코드', `/courses/${course.slug}/code`, course.code),
       '## 강의 문서',
       '',
       ...course.docs.map((file) => {
@@ -224,36 +287,50 @@ async function writeDocs(courses) {
   }
 }
 
-function authDirectives(course) {
-  if (course.access !== 'protected') return '';
-  const file = `${runtimeAuthPath}/${course.slug}.htpasswd`;
-  return `\n    auth_basic "${escapeNginx(course.title)}";\n    auth_basic_user_file "${escapeNginx(file)}";`;
-}
-
 function courseLocations(course) {
-  const auth = authDirectives(course);
   const slug = course.slug;
+  const locationName = slug.replaceAll('-', '_');
+  const auth = `
+    auth_request /_auth/${slug};
+    error_page 401 = @login_${locationName};
+    error_page 403 = @closed_${locationName};`;
   return `
-  location = /courses/${slug} { return 301 /courses/${slug}/; }
-  location ^~ /courses/${slug}/ {${auth}
-    try_files $uri $uri/ =404;
+  location = /_auth/${slug} {
+    internal;
+    proxy_pass http://127.0.0.1:3000/check/${slug};
+    proxy_pass_request_body off;
+    proxy_set_header Content-Length "";
+    proxy_set_header Cookie $http_cookie;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
   }
-  location = /files/${slug} { return 301 /files/${slug}/; }
-  location /files/${slug}/ {${auth}
+  location @login_${locationName} { return 302 /login/${slug}?next=$request_uri; }
+  location @closed_${locationName} { return 302 /status/${slug}; }
+  location = /courses/${slug} { return 301 /courses/${slug}/; }
+  location ^~ /courses/${slug}/materials/ {${auth}
     alias ${runtimeCoursesPath}/${slug}/materials/;
     autoindex off;
     disable_symlinks on;
+    add_header Content-Disposition "attachment";
   }
-  location = /code/${slug} { return 301 /code/${slug}/; }
-  location /code/${slug}/ {${auth}
+  location ^~ /courses/${slug}/code/ {${auth}
     alias ${runtimeCoursesPath}/${slug}/code/;
     autoindex off;
     disable_symlinks on;
-  }`;
+    add_header Content-Disposition "attachment";
+  }
+  location ^~ /courses/${slug}/ {${auth}
+    try_files $uri $uri/ =404;
+  }
+  `;
 }
 
 async function writeNginxConfig(courses) {
-  const config = `server {
+  const config = `map $http_x_forwarded_proto $education_forwarded_proto {
+  default $http_x_forwarded_proto;
+  "" $scheme;
+}
+
+server {
   listen 80 default_server;
   server_name _;
   root ${siteRoot};
@@ -268,6 +345,24 @@ async function writeNginxConfig(courses) {
   }
 
   location ~ (^|/)\\. { deny all; }
+
+  location ^~ /login/ {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $education_forwarded_proto;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  }
+  location ^~ /logout/ {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $education_forwarded_proto;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  }
+  location ^~ /status/ {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $education_forwarded_proto;
+  }
 ${courses.map(courseLocations).join('\n')}
 
   location / {
@@ -297,7 +392,12 @@ async function main() {
   await writeDocs(courses);
   await fs.writeFile(
     path.join(generatedDir, 'courses.json'),
-    JSON.stringify(courses.map(({slug, title, description, order, access}) => ({slug, title, description, order, access})), null, 2) + '\n',
+    JSON.stringify(courses.map(({slug, title, description, order, access, availableFrom, availableUntil}) => ({slug, title, description, order, access, availableFrom, availableUntil})), null, 2) + '\n',
+    'utf8',
+  );
+  await fs.writeFile(
+    path.join(generatedDir, 'runtime-courses.json'),
+    JSON.stringify(courses.map(({slug, title, access, availableFrom, availableUntil}) => ({slug, title, access, availableFrom, availableUntil})), null, 2) + '\n',
     'utf8',
   );
   await writeNginxConfig(courses);

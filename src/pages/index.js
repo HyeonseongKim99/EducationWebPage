@@ -6,6 +6,13 @@ import courses from '@site/generated/courses.json';
 import styles from './index.module.css';
 
 function CourseCard({course}) {
+  const period = [course.availableFrom, course.availableUntil]
+    .map((value) => value ? new Intl.DateTimeFormat('ko-KR', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+      timeZone: 'Asia/Seoul',
+    }).format(new Date(value)) : null);
+
   return (
     <article className="course-card">
       <span className="course-badge">
@@ -13,6 +20,11 @@ function CourseCard({course}) {
       </span>
       <Heading as="h2">{course.title}</Heading>
       <p>{course.description}</p>
+      {(period[0] || period[1]) && (
+        <p className="course-period">
+          배포 기간: {period[0] || '제한 없음'} ~ {period[1] || '제한 없음'}
+        </p>
+      )}
       <Link className="button button--primary button--sm" to={`/courses/${course.slug}/`}>
         수업 들어가기
       </Link>

@@ -8,8 +8,9 @@ services:
     volumes:
       - "${COURSES_PATH}:/srv/courses:ro"
       - "${AUTH_PATH}:/srv/auth:ro"
-      - "${GENERATED_PATH}:/srv/site"
     environment:
       SITE_URL: "${SITE_URL:-http://localhost}"
+      SESSION_TTL_HOURS: "${SESSION_TTL_HOURS:-12}"
+      SESSION_COOKIE_SECURE: "${SESSION_COOKIE_SECURE:-auto}"
     security_opt:
       - no-new-privileges:true
