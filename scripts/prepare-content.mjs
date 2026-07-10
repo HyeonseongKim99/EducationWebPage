@@ -266,6 +266,9 @@ async function writeDocs(courses) {
 function courseLocations(course) {
   const slug = course.slug;
   const locationName = slug.replaceAll('-', '_');
+  const privateCache = course.access === 'protected'
+    ? '\n    add_header Cache-Control "private, no-store, max-age=0" always;'
+    : '';
   const auth = `
     auth_request /_auth/${slug};
     error_page 401 = @login_${locationName};
@@ -286,16 +289,16 @@ function courseLocations(course) {
     alias ${runtimeCoursesPath}/${slug}/materials/;
     autoindex off;
     disable_symlinks on;
-    add_header Content-Disposition "attachment";
+    add_header Content-Disposition "attachment";${privateCache}
   }
   location ^~ /courses/${slug}/code/ {${auth}
     alias ${runtimeCoursesPath}/${slug}/code/;
     autoindex off;
     disable_symlinks on;
-    add_header Content-Disposition "attachment";
+    add_header Content-Disposition "attachment";${privateCache}
   }
   location ^~ /courses/${slug}/ {${auth}
-    try_files $uri $uri/ =404;
+    try_files $uri $uri/ =404;${privateCache}
   }
   `;
 }

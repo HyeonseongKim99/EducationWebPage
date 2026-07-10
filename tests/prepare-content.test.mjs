@@ -78,6 +78,7 @@ test('공개 및 보호 수업 설정을 안전한 경로로 생성한다', asyn
   const protectedNginx = await fs.readFile(protectedResult.nginx, 'utf8');
   assert.match(protectedNginx, /location @login_secure_course/);
   assert.equal((protectedNginx.match(/auth_request \/_auth\/secure-course/g) || []).length, 3);
+  assert.equal((protectedNginx.match(/Cache-Control "private, no-store, max-age=0"/g) || []).length, 3);
 });
 
 test('배포 기간과 다운로드 카드를 생성한다', async (t) => {

@@ -84,6 +84,14 @@ test('로그인 한 번으로 보호 수업 세션을 발급하고 확인한다'
   assert.match(cookie, /HttpOnly/);
   assert.doesNotMatch(cookie, /Max-Age/);
   assert.equal((await fetch(`${base}/check/secure-course`, {headers: {Cookie: cookie.split(';')[0]}})).status, 204);
+
+  const logout = await fetch(`${base}/logout/secure-course`, {
+    headers: {Cookie: cookie.split(';')[0]},
+    redirect: 'manual',
+  });
+  assert.equal(logout.status, 302);
+  assert.match(logout.headers.get('set-cookie'), /Max-Age=0/);
+  assert.equal(logout.headers.get('clear-site-data'), '"cache"');
 });
 
 test('배포 시작 전에는 공개 수업도 차단한다', async (t) => {

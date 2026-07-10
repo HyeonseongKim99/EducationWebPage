@@ -197,6 +197,8 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(302, {
         Location: '/',
         'Set-Cookie': `${cookieName(slug)}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure}`,
+        'Cache-Control': 'no-store',
+        'Clear-Site-Data': '"cache"',
       }).end();
       return;
     }
