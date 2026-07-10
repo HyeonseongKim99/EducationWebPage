@@ -63,6 +63,9 @@ async function startServer(t) {
 test('로그인 한 번으로 보호 수업 세션을 발급하고 확인한다', async (t) => {
   const base = await startServer(t);
   assert.equal((await fetch(`${base}/check/secure-course`)).status, 401);
+  const deniedEntry = await fetch(`${base}/enter/secure-course`, {redirect: 'manual'});
+  assert.equal(deniedEntry.status, 302);
+  assert.equal(deniedEntry.headers.get('location'), '/login/secure-course?next=%2Fcourses%2Fsecure-course%2F');
   assert.equal((await fetch(`${base}/login/secure-course?next=/courses/secure-course/`)).status, 200);
 
   const failed = await fetch(`${base}/login/secure-course`, {
@@ -84,6 +87,11 @@ test('로그인 한 번으로 보호 수업 세션을 발급하고 확인한다'
   assert.match(cookie, /HttpOnly/);
   assert.doesNotMatch(cookie, /Max-Age/);
   assert.equal((await fetch(`${base}/check/secure-course`, {headers: {Cookie: cookie.split(';')[0]}})).status, 204);
+  const allowedEntry = await fetch(`${base}/enter/secure-course`, {
+    headers: {Cookie: cookie.split(';')[0]},
+    redirect: 'manual',
+  });
+  assert.equal(allowedEntry.headers.get('location'), '/courses/secure-course/');
 
   const logout = await fetch(`${base}/logout/secure-course`, {
     headers: {Cookie: cookie.split(';')[0]},

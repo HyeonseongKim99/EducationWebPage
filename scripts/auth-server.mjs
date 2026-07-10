@@ -175,6 +175,25 @@ const server = http.createServer(async (req, res) => {
     }
     const state = availability(course);
 
+    if (action === 'enter') {
+      if (req.method !== 'GET') {
+        res.writeHead(405, {Allow: 'GET'}).end();
+        return;
+      }
+      if (state !== 'active') {
+        res.writeHead(302, {Location: `/status/${slug}`}).end();
+        return;
+      }
+      const token = parseCookies(req.headers.cookie)[cookieName(slug)];
+      const allowed = course.access === 'public' || verifyToken(token, slug);
+      const destination = `/courses/${slug}/`;
+      res.writeHead(302, {
+        Location: allowed ? destination : `/login/${slug}?next=${encodeURIComponent(destination)}`,
+        'Cache-Control': 'no-store',
+      }).end();
+      return;
+    }
+
     if (action === 'check') {
       if (state !== 'active') res.writeHead(403).end();
       else if (course.access === 'public') res.writeHead(204).end();

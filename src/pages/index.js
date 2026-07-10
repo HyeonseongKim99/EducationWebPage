@@ -25,9 +25,15 @@ function CourseCard({course}) {
           배포 기간: {period[0] || '제한 없음'} ~ {period[1] || '제한 없음'}
         </p>
       )}
-      <Link className="button button--primary button--sm" to={`/courses/${course.slug}/`}>
-        수업 들어가기
-      </Link>
+      {course.access === 'protected' ? (
+        <a className="button button--primary button--sm" href={`/enter/${course.slug}`}>
+          수업 들어가기
+        </a>
+      ) : (
+        <Link className="button button--primary button--sm" to={`/courses/${course.slug}/`}>
+          수업 들어가기
+        </Link>
+      )}
     </article>
   );
 }

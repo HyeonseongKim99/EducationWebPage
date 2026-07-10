@@ -203,7 +203,9 @@ async function writeDocs(courses) {
     '# 수업 목록',
     '',
     ...courses.flatMap((course) => [
-      `## [${markdownEscape(course.title)}](/courses/${course.slug}/)`,
+      course.access === 'protected'
+        ? `<h2><a href="/enter/${course.slug}">${htmlEscape(course.title)}</a></h2>`
+        : `## [${markdownEscape(course.title)}](/courses/${course.slug}/)`,
       '',
       course.access === 'protected' ? '🔒 비밀번호가 필요한 수업입니다.' : '🌐 공개 수업입니다.',
       '',
@@ -235,10 +237,12 @@ async function writeDocs(courses) {
       fileList('실습 코드', '실습에 필요한 코드와 예제 파일을 내려받을 수 있습니다.', `/courses/${course.slug}/code`, course.code),
       '## 강의 문서',
       '',
+      '<ul>',
       ...course.docs.map((file) => {
         const withoutExt = file.slice(0, -path.extname(file).length);
-        return `- [${markdownEscape(withoutExt)}](/courses/${course.slug}/${encodeUrlPath(withoutExt)})`;
+        return `<li><a href="/courses/${course.slug}/${encodeUrlPath(withoutExt)}">${htmlEscape(withoutExt)}</a></li>`;
       }),
+      '</ul>',
       '',
     ];
     await fs.writeFile(path.join(target, 'index.md'), index.join('\n'), 'utf8');
@@ -328,6 +332,13 @@ server {
   location ^~ /login/ {
     proxy_pass http://127.0.0.1:3000;
     proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $education_forwarded_proto;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  }
+  location ^~ /enter/ {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_set_header Host $host;
+    proxy_set_header Cookie $http_cookie;
     proxy_set_header X-Forwarded-Proto $education_forwarded_proto;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
   }
