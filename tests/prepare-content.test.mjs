@@ -84,11 +84,18 @@ test('공개 및 보호 수업 설정을 안전한 경로로 생성한다', asyn
   assert.match(catalog, /href="\/enter\/secure-course"/);
 });
 
-test('배포 기간과 다운로드 카드를 생성한다', async (t) => {
+test('배포 기간, 과제 제출 링크, QR과 다운로드 카드를 생성한다', async (t) => {
   const paths = await fixture({
     config: {
       availableFrom: '2026-07-20T09:00:00+09:00',
       availableUntil: '2026-07-31T18:00:00+09:00',
+      submissions: [{
+        title: '실습 과제',
+        description: 'ZIP 파일로 제출하세요.',
+        url: 'https://submit.example.com/form',
+        deadline: '2026-07-30T23:59:59+09:00',
+        showQr: true,
+      }],
     },
   });
   t.after(() => fs.rm(paths.root, {recursive: true, force: true}));
@@ -97,6 +104,13 @@ test('배포 기간과 다운로드 카드를 생성한다', async (t) => {
   assert.match(index, /전체자료\.zip/);
   assert.match(index, /download-card/);
   assert.doesNotMatch(index, /README\.txt/);
+  assert.match(index, /과제 제출/);
+  assert.match(index, /https:\/\/submit\.example\.com\/form/);
+  assert.match(index, /_submission-qr-1\.svg/);
+  assert.match(
+    await fs.readFile(path.join(result.generated, 'docs', 'course-one', '_submission-qr-1.svg'), 'utf8'),
+    /<svg/,
+  );
   const runtime = JSON.parse(await fs.readFile(path.join(result.generated, 'runtime-courses.json'), 'utf8'));
   assert.equal(runtime[0].availableUntil, '2026-07-31T18:00:00+09:00');
 });
@@ -105,6 +119,12 @@ test('잘못된 배포 기간을 거부한다', async (t) => {
   const badPeriod = await fixture({config: {availableFrom: '2026-08-01T00:00:00+09:00', availableUntil: '2026-07-01T00:00:00+09:00'}});
   t.after(() => fs.rm(badPeriod.root, {recursive: true, force: true}));
   await assert.rejects(run(badPeriod), /availableUntil/);
+});
+
+test('안전하지 않은 과제 제출 주소를 거부한다', async (t) => {
+  const paths = await fixture({config: {submissions: [{title: '과제', url: 'http://submit.example.com'}]}});
+  t.after(() => fs.rm(paths.root, {recursive: true, force: true}));
+  await assert.rejects(run(paths), /HTTPS URL/);
 });
 
 test('잘못된 slug와 JSON을 거부한다', async (t) => {

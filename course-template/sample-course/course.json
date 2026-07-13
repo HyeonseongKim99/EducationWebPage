@@ -2,5 +2,13 @@
   "title": "샘플 공개 수업",
   "description": "NAS 수업 디렉터리의 작성 형식을 보여 주는 공개 예시입니다.",
   "order": 10,
-  "access": "public"
+  "access": "public",
+  "submissions": [
+    {
+      "title": "샘플 과제 제출",
+      "description": "외부 제출 링크와 QR 표시 예시입니다.",
+      "url": "https://example.com/submit",
+      "showQr": true
+    }
+  ]
 }

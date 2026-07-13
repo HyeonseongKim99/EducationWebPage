@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import matter from 'gray-matter';
+import QRCode from 'qrcode';
 
 const root = process.cwd();
 const coursesPath = path.resolve(process.env.COURSES_PATH || path.join(root, 'course-template'));
@@ -42,6 +43,20 @@ function validateDateTime(value, label, slug) {
     fail(`${label}은 시간대가 포함된 ISO 8601 형식이어야 합니다: ${slug}`);
   }
   return value;
+}
+
+function validateSubmissionUrl(value, slug, index) {
+  if (typeof value !== 'string') fail(`submissions[${index}].url이 필요합니다: ${slug}`);
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    fail(`submissions[${index}].url 형식이 올바르지 않습니다: ${slug}`);
+  }
+  if (parsed.protocol !== 'https:' || parsed.username || parsed.password) {
+    fail(`과제 제출 주소는 사용자 정보가 없는 HTTPS URL이어야 합니다: ${slug}`);
+  }
+  return parsed.href;
 }
 
 async function ensureDirectory(target, label) {
@@ -119,6 +134,35 @@ async function readCourse(courseDir, slug) {
   if (availableFrom && availableUntil && Date.parse(availableFrom) >= Date.parse(availableUntil)) {
     fail(`availableUntil은 availableFrom보다 뒤여야 합니다: ${slug}`);
   }
+  const rawSubmissions = config.submissions ?? [];
+  if (!Array.isArray(rawSubmissions) || rawSubmissions.length > 20) {
+    fail(`submissions는 최대 20개의 배열이어야 합니다: ${slug}`);
+  }
+  const submissions = rawSubmissions.map((submission, index) => {
+    if (!submission || typeof submission !== 'object' || Array.isArray(submission)) {
+      fail(`submissions[${index}] 형식이 올바르지 않습니다: ${slug}`);
+    }
+    const allowedKeys = new Set(['title', 'description', 'url', 'deadline', 'showQr']);
+    if (Object.keys(submission).some((key) => !allowedKeys.has(key))) {
+      fail(`submissions[${index}]에 알 수 없는 설정이 있습니다: ${slug}`);
+    }
+    if (typeof submission.title !== 'string' || !submission.title.trim()) {
+      fail(`submissions[${index}].title이 필요합니다: ${slug}`);
+    }
+    if (submission.description !== undefined && typeof submission.description !== 'string') {
+      fail(`submissions[${index}].description은 문자열이어야 합니다: ${slug}`);
+    }
+    if (submission.showQr !== undefined && typeof submission.showQr !== 'boolean') {
+      fail(`submissions[${index}].showQr은 true 또는 false여야 합니다: ${slug}`);
+    }
+    return {
+      title: submission.title.trim(),
+      description: submission.description?.trim() || '',
+      url: validateSubmissionUrl(submission.url, slug, index),
+      deadline: validateDateTime(submission.deadline, `submissions[${index}].deadline`, slug),
+      showQr: submission.showQr ?? false,
+    };
+  });
 
   if (config.access === 'protected') {
     const passwordFile = path.join(authPath, `${slug}.htpasswd`);
@@ -141,6 +185,7 @@ async function readCourse(courseDir, slug) {
     access: config.access,
     availableFrom,
     availableUntil,
+    submissions,
     docsDir,
     materialsDir,
     codeDir,
@@ -185,6 +230,26 @@ function availabilityText(course) {
   if (course.availableUntil) lines.push(`- 종료: ${course.availableUntil}`);
   lines.push('');
   return lines.join('\n');
+}
+
+function submissionCards(course) {
+  if (course.submissions.length === 0) return '';
+  return [
+    '## 과제 제출',
+    '',
+    '<div class="submission-grid">',
+    ...course.submissions.map((submission, index) => [
+      '  <article class="submission-card">',
+      `    <div class="submission-content"><h3>${htmlEscape(submission.title)}</h3>`,
+      submission.description ? `    <p>${htmlEscape(submission.description)}</p>` : '',
+      submission.deadline ? `    <p class="submission-deadline">제출 마감: <time datetime="${htmlEscape(submission.deadline)}">${htmlEscape(submission.deadline)}</time></p>` : '',
+      `    <a class="button button--primary" href="${htmlEscape(submission.url)}" target="_blank" rel="noopener noreferrer">제출 페이지 열기 ↗</a></div>`,
+      submission.showQr ? `    <img class="submission-qr" src="/courses/${course.slug}/_submission-qr-${index + 1}.svg" alt="${htmlEscape(submission.title)} 제출 페이지 QR 코드" />` : '',
+      '  </article>',
+    ].filter(Boolean).join('\n')),
+    '</div>',
+    '',
+  ].join('\n');
 }
 
 async function writeDocs(courses) {
@@ -233,6 +298,7 @@ async function writeDocs(courses) {
       course.access === 'protected' ? `<a href="/logout/${course.slug}">로그아웃</a>` : '',
       '',
       availabilityText(course),
+      submissionCards(course),
       fileList('강의 자료', '강의 슬라이드와 참고 자료를 내려받을 수 있습니다.', `/courses/${course.slug}/materials`, course.materials),
       fileList('실습 코드', '실습에 필요한 코드와 예제 파일을 내려받을 수 있습니다.', `/courses/${course.slug}/code`, course.code),
       '## 강의 문서',
@@ -263,6 +329,16 @@ async function writeDocs(courses) {
       safeFrontmatter.pagination_next = null;
       safeFrontmatter.pagination_prev = null;
       await fs.writeFile(destination, matter.stringify(parsed.content, safeFrontmatter), 'utf8');
+    }
+    for (const [index, submission] of course.submissions.entries()) {
+      if (!submission.showQr) continue;
+      const svg = await QRCode.toString(submission.url, {
+        type: 'svg',
+        errorCorrectionLevel: 'M',
+        margin: 1,
+        width: 180,
+      });
+      await fs.writeFile(path.join(target, `_submission-qr-${index + 1}.svg`), svg, 'utf8');
     }
   }
 }
