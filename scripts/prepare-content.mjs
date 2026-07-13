@@ -8,6 +8,7 @@ const root = process.cwd();
 const coursesPath = path.resolve(process.env.COURSES_PATH || path.join(root, 'course-template'));
 const authPath = path.resolve(process.env.AUTH_PATH || path.join(root, 'auth-template'));
 const generatedDir = path.resolve(process.env.GENERATED_DIR || path.join(root, 'generated'));
+const staticDir = path.resolve(process.env.STATIC_DIR || path.join(root, 'static'));
 const nginxConfigPath = path.resolve(
   process.env.NGINX_CONFIG_PATH || path.join(root, '.runtime', 'nginx.conf'),
 );
@@ -244,7 +245,7 @@ function submissionCards(course) {
       submission.description ? `    <p>${htmlEscape(submission.description)}</p>` : '',
       submission.deadline ? `    <p class="submission-deadline">제출 마감: <time datetime="${htmlEscape(submission.deadline)}">${htmlEscape(submission.deadline)}</time></p>` : '',
       `    <a class="button button--primary" href="${htmlEscape(submission.url)}" target="_blank" rel="noopener noreferrer">제출 페이지 열기 ↗</a></div>`,
-      submission.showQr ? `    <img class="submission-qr" src="/courses/${course.slug}/_submission-qr-${index + 1}.svg" alt="${htmlEscape(submission.title)} 제출 페이지 QR 코드" />` : '',
+      submission.showQr ? `    <img class="submission-qr" src="/generated-submission-assets/${course.slug}/qr-${index + 1}.svg" alt="${htmlEscape(submission.title)} 제출 페이지 QR 코드" />` : '',
       '  </article>',
     ].filter(Boolean).join('\n')),
     '</div>',
@@ -254,8 +255,11 @@ function submissionCards(course) {
 
 async function writeDocs(courses) {
   const docsRoot = path.join(generatedDir, 'docs');
+  const submissionAssetsRoot = path.join(staticDir, 'generated-submission-assets');
   await fs.rm(docsRoot, {recursive: true, force: true});
+  await fs.rm(submissionAssetsRoot, {recursive: true, force: true});
   await fs.mkdir(docsRoot, {recursive: true});
+  await fs.mkdir(submissionAssetsRoot, {recursive: true});
 
   const catalog = [
     '---',
@@ -338,7 +342,9 @@ async function writeDocs(courses) {
         margin: 1,
         width: 180,
       });
-      await fs.writeFile(path.join(target, `_submission-qr-${index + 1}.svg`), svg, 'utf8');
+      const qrTarget = path.join(submissionAssetsRoot, course.slug);
+      await fs.mkdir(qrTarget, {recursive: true});
+      await fs.writeFile(path.join(qrTarget, `qr-${index + 1}.svg`), svg, 'utf8');
     }
   }
 }
@@ -376,6 +382,9 @@ function courseLocations(course) {
     autoindex off;
     disable_symlinks on;
     add_header Content-Disposition "attachment";${privateCache}
+  }
+  location ^~ /generated-submission-assets/${slug}/ {${auth}
+    try_files $uri =404;${privateCache}
   }
   location ^~ /courses/${slug}/ {${auth}
     try_files $uri $uri/ =404;${privateCache}

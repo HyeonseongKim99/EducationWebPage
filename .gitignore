@@ -4,6 +4,7 @@ generated/*
 !generated/.gitkeep
 .runtime/
 .docusaurus/
+static/generated-submission-assets/
 .env
 npm-debug.log*
 .DS_Store

@@ -48,6 +48,7 @@ async function run(paths) {
       COURSES_PATH: paths.courses,
       AUTH_PATH: paths.auth,
       GENERATED_DIR: generated,
+      STATIC_DIR: path.join(paths.root, 'static'),
       NGINX_CONFIG_PATH: nginx,
       SITE_ROOT: '/srv/site',
     },
@@ -62,7 +63,7 @@ test('공개 및 보호 수업 설정을 안전한 경로로 생성한다', asyn
   const publicNginx = await fs.readFile(publicResult.nginx, 'utf8');
   assert.match(publicNginx, /location \^~ \/courses\/course-one\/materials\//);
   assert.doesNotMatch(publicNginx, /auth_basic/);
-  assert.equal((publicNginx.match(/auth_request \/_auth\/course-one/g) || []).length, 3);
+  assert.equal((publicNginx.match(/auth_request \/_auth\/course-one/g) || []).length, 4);
   const generatedDoc = await fs.readFile(
     path.join(publicResult.generated, 'docs', 'course-one', 'intro.md'), 'utf8',
   );
@@ -78,8 +79,8 @@ test('공개 및 보호 수업 설정을 안전한 경로로 생성한다', asyn
   const protectedNginx = await fs.readFile(protectedResult.nginx, 'utf8');
   assert.match(protectedNginx, /location @login_secure_course/);
   assert.match(protectedNginx, /location \^~ \/enter\//);
-  assert.equal((protectedNginx.match(/auth_request \/_auth\/secure-course/g) || []).length, 3);
-  assert.equal((protectedNginx.match(/Cache-Control "private, no-store, max-age=0"/g) || []).length, 3);
+  assert.equal((protectedNginx.match(/auth_request \/_auth\/secure-course/g) || []).length, 4);
+  assert.equal((protectedNginx.match(/Cache-Control "private, no-store, max-age=0"/g) || []).length, 4);
   const catalog = await fs.readFile(path.join(protectedResult.generated, 'docs', 'index.md'), 'utf8');
   assert.match(catalog, /href="\/enter\/secure-course"/);
 });
@@ -106,9 +107,9 @@ test('배포 기간, 과제 제출 링크, QR과 다운로드 카드를 생성�
   assert.doesNotMatch(index, /README\.txt/);
   assert.match(index, /과제 제출/);
   assert.match(index, /https:\/\/submit\.example\.com\/form/);
-  assert.match(index, /_submission-qr-1\.svg/);
+  assert.match(index, /generated-submission-assets\/course-one\/qr-1\.svg/);
   assert.match(
-    await fs.readFile(path.join(result.generated, 'docs', 'course-one', '_submission-qr-1.svg'), 'utf8'),
+    await fs.readFile(path.join(paths.root, 'static', 'generated-submission-assets', 'course-one', 'qr-1.svg'), 'utf8'),
     /<svg/,
   );
   const runtime = JSON.parse(await fs.readFile(path.join(result.generated, 'runtime-courses.json'), 'utf8'));
