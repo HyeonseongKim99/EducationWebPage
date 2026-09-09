@@ -15,4 +15,7 @@ export RUNTIME_COURSES_PATH RUNTIME_AUTH_PATH
 node scripts/prepare-content.mjs
 node node_modules/@docusaurus/core/bin/docusaurus.mjs build --out-dir "$SITE_ROOT"
 node scripts/auth-server.mjs &
+if [ "${CONTENT_AUTO_REFRESH:-true}" = "true" ]; then
+  node scripts/content-watcher.mjs &
+fi
 exec nginx -g 'daemon off;'

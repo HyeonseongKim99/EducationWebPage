@@ -5,7 +5,7 @@ import Link from '@docusaurus/Link';
 import courses from '@site/generated/courses.json';
 import styles from './index.module.css';
 
-function CourseCard({course}) {
+function CourseCard({course, completed = false}) {
   const period = [course.availableFrom, course.availableUntil]
     .map((value) => value ? new Intl.DateTimeFormat('ko-KR', {
       dateStyle: 'medium',
@@ -14,10 +14,25 @@ function CourseCard({course}) {
     }).format(new Date(value)) : null);
 
   return (
-    <article className="course-card">
-      <span className="course-badge">
-        {course.access === 'protected' ? '🔒 비밀번호 필요' : '공개 수업'}
-      </span>
+    <article className={clsx('course-card', completed && 'course-card--completed')}>
+      <div className="course-card__top">
+        <span className="course-badge">
+          {completed ? '✅ 교육 완료' : course.access === 'protected' ? '🔒 비밀번호 필요' : '공개 수업'}
+        </span>
+        {completed ? (
+          <a className="button button--secondary button--sm" href={`/status/${course.slug}`}>
+            종료 정보
+          </a>
+        ) : course.access === 'protected' ? (
+          <a className="button button--primary button--sm" href={`/enter/${course.slug}`}>
+            수업 들어가기
+          </a>
+        ) : (
+          <Link className="button button--primary button--sm" to={`/courses/${course.slug}/`}>
+            수업 들어가기
+          </Link>
+        )}
+      </div>
       <Heading as="h2">{course.title}</Heading>
       <p>{course.description}</p>
       {(period[0] || period[1]) && (
@@ -25,20 +40,13 @@ function CourseCard({course}) {
           배포 기간: {period[0] || '제한 없음'} ~ {period[1] || '제한 없음'}
         </p>
       )}
-      {course.access === 'protected' ? (
-        <a className="button button--primary button--sm" href={`/enter/${course.slug}`}>
-          수업 들어가기
-        </a>
-      ) : (
-        <Link className="button button--primary button--sm" to={`/courses/${course.slug}/`}>
-          수업 들어가기
-        </Link>
-      )}
     </article>
   );
 }
 
 export default function Home() {
+  const currentCourses = courses.filter((course) => course.status !== 'completed');
+  const completedCourses = courses.filter((course) => course.status === 'completed');
   return (
     <Layout title="홈" description="강의 문서와 실습 자료를 제공하는 교육 자료실">
       <header className={clsx('hero hero--primary', styles.hero)}>
@@ -51,14 +59,24 @@ export default function Home() {
         </div>
       </header>
       <main className="container margin-vert--lg">
-        <Heading as="h1">현재 수업</Heading>
-        {courses.length === 0 ? (
-          <p>등록된 수업이 없습니다. NAS의 courses 디렉터리에 수업을 추가해 주세요.</p>
+        <Heading as="h1">교육 세션</Heading>
+        {currentCourses.length === 0 ? (
+          <p>현재 진행 중이거나 예정된 교육 세션이 없습니다.</p>
         ) : (
           <div className="course-grid">
-            {courses.map((course) => <CourseCard key={course.slug} course={course} />)}
+            {currentCourses.map((course) => <CourseCard key={course.slug} course={course} />)}
           </div>
         )}
+        <section className="completed-courses">
+          <Heading as="h2">완료된 교육 세션</Heading>
+          {completedCourses.length === 0 ? (
+            <p>완료된 교육 세션이 없습니다.</p>
+          ) : (
+            <div className="course-grid">
+              {completedCourses.map((course) => <CourseCard key={course.slug} course={course} completed />)}
+            </div>
+          )}
+        </section>
       </main>
     </Layout>
   );

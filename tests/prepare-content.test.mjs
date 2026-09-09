@@ -114,6 +114,10 @@ test('배포 기간, 과제 제출 링크, QR과 다운로드 카드를 생성�
   );
   const runtime = JSON.parse(await fs.readFile(path.join(result.generated, 'runtime-courses.json'), 'utf8'));
   assert.equal(runtime[0].availableUntil, '2026-07-31T18:00:00+09:00');
+  const publicCourses = JSON.parse(await fs.readFile(path.join(result.generated, 'courses.json'), 'utf8'));
+  assert.equal(publicCourses[0].status, 'completed');
+  const catalog = await fs.readFile(path.join(result.generated, 'docs', 'index.md'), 'utf8');
+  assert.match(catalog, /완료된 교육 세션/);
 });
 
 test('잘못된 배포 기간을 거부한다', async (t) => {

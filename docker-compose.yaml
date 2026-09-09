@@ -12,5 +12,8 @@ services:
       SITE_URL: "${SITE_URL:-http://localhost}"
       SESSION_TTL_HOURS: "${SESSION_TTL_HOURS:-12}"
       SESSION_COOKIE_SECURE: "${SESSION_COOKIE_SECURE:-auto}"
+      CONTENT_AUTO_REFRESH: "${CONTENT_AUTO_REFRESH:-true}"
+      CONTENT_POLL_SECONDS: "${CONTENT_POLL_SECONDS:-60}"
+      CONTENT_SETTLE_SECONDS: "${CONTENT_SETTLE_SECONDS:-15}"
     security_opt:
       - no-new-privileges:true

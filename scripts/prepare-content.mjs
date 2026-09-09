@@ -26,10 +26,6 @@ function encodeUrlPath(relativePath) {
   return relativePath.split(path.sep).map(encodeURIComponent).join('/');
 }
 
-function markdownEscape(value) {
-  return value.replaceAll('\\', '\\\\').replaceAll('[', '\\[').replaceAll(']', '\\]');
-}
-
 function htmlEscape(value) {
   return value
     .replaceAll('&', '&amp;')
@@ -58,6 +54,12 @@ function validateSubmissionUrl(value, slug, index) {
     fail(`과제 제출 주소는 사용자 정보가 없는 HTTPS URL이어야 합니다: ${slug}`);
   }
   return parsed.href;
+}
+
+function courseStatus(availableFrom, availableUntil, now = Date.now()) {
+  if (availableFrom && now < Date.parse(availableFrom)) return 'upcoming';
+  if (availableUntil && now >= Date.parse(availableUntil)) return 'completed';
+  return 'active';
 }
 
 async function ensureDirectory(target, label) {
@@ -186,6 +188,7 @@ async function readCourse(courseDir, slug) {
     access: config.access,
     availableFrom,
     availableUntil,
+    status: courseStatus(availableFrom, availableUntil),
     submissions,
     docsDir,
     materialsDir,
@@ -261,6 +264,22 @@ async function writeDocs(courses) {
   await fs.mkdir(docsRoot, {recursive: true});
   await fs.mkdir(submissionAssetsRoot, {recursive: true});
 
+  const currentCourses = courses.filter((course) => course.status !== 'completed');
+  const completedCourses = courses.filter((course) => course.status === 'completed');
+  const catalogEntries = (items, completed = false) => items.flatMap((course) => [
+    completed
+      ? `<h3><a href="/status/${course.slug}">${htmlEscape(course.title)}</a></h3>`
+      : course.access === 'protected'
+        ? `<h3><a href="/enter/${course.slug}">${htmlEscape(course.title)}</a></h3>`
+        : `<h3><a href="/courses/${course.slug}/">${htmlEscape(course.title)}</a></h3>`,
+    '',
+    completed
+      ? '✅ 완료된 교육 세션입니다.'
+      : course.access === 'protected' ? '🔒 비밀번호가 필요한 수업입니다.' : '🌐 공개 수업입니다.',
+    '',
+    course.description,
+    '',
+  ]);
   const catalog = [
     '---',
     'id: course-catalog',
@@ -269,20 +288,15 @@ async function writeDocs(courses) {
     'hide_table_of_contents: true',
     '---',
     '',
-    '# 수업 목록',
+    '# 교육 세션',
     '',
-    ...courses.flatMap((course) => [
-      course.access === 'protected'
-        ? `<h2><a href="/enter/${course.slug}">${htmlEscape(course.title)}</a></h2>`
-        : `## [${markdownEscape(course.title)}](/courses/${course.slug}/)`,
-      '',
-      course.access === 'protected' ? '🔒 비밀번호가 필요한 수업입니다.' : '🌐 공개 수업입니다.',
-      '',
-      course.description,
-      '',
-    ]),
+    ...catalogEntries(currentCourses),
+    ...(currentCourses.length === 0 ? ['_현재 교육 세션이 없습니다._', ''] : []),
+    '## 완료된 교육 세션',
+    '',
+    ...catalogEntries(completedCourses, true),
+    ...(completedCourses.length === 0 ? ['_완료된 교육 세션이 없습니다._', ''] : []),
   ];
-  if (courses.length === 0) catalog.push('_등록된 수업이 없습니다._', '');
   await fs.writeFile(path.join(docsRoot, 'index.md'), catalog.join('\n'), 'utf8');
 
   for (const course of courses) {
@@ -467,7 +481,7 @@ async function main() {
   await writeDocs(courses);
   await fs.writeFile(
     path.join(generatedDir, 'courses.json'),
-    JSON.stringify(courses.map(({slug, title, description, order, access, availableFrom, availableUntil}) => ({slug, title, description, order, access, availableFrom, availableUntil})), null, 2) + '\n',
+    JSON.stringify(courses.map(({slug, title, description, order, access, availableFrom, availableUntil, status}) => ({slug, title, description, order, access, availableFrom, availableUntil, status})), null, 2) + '\n',
     'utf8',
   );
   await fs.writeFile(
