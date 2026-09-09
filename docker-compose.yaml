@@ -7,7 +7,6 @@ services:
       - "${WEB_PORT:-8080}:80"
     volumes:
       - "${COURSES_PATH}:/srv/courses:ro"
-      - "${AUTH_PATH}:/srv/auth:ro"
     environment:
       SITE_URL: "${SITE_URL:-http://localhost}"
       SESSION_TTL_HOURS: "${SESSION_TTL_HOURS:-12}"

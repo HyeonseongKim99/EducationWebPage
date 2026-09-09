@@ -6,7 +6,6 @@ import QRCode from 'qrcode';
 
 const root = process.cwd();
 const coursesPath = path.resolve(process.env.COURSES_PATH || path.join(root, 'course-template'));
-const authPath = path.resolve(process.env.AUTH_PATH || path.join(root, 'auth-template'));
 const generatedDir = path.resolve(process.env.GENERATED_DIR || path.join(root, 'generated'));
 const staticDir = path.resolve(process.env.STATIC_DIR || path.join(root, 'static'));
 const nginxConfigPath = path.resolve(
@@ -168,7 +167,7 @@ async function readCourse(courseDir, slug) {
   });
 
   if (config.access === 'protected') {
-    const passwordFile = path.join(authPath, `${slug}.htpasswd`);
+    const passwordFile = path.join(courseDir, 'auth.htpasswd');
     const passwordStat = await fs.lstat(passwordFile).catch(() => null);
     if (!passwordStat?.isFile() || passwordStat.isSymbolicLink()) {
       fail(`보호 수업의 htpasswd 파일이 없습니다: ${slug}`);
@@ -465,12 +464,11 @@ ${courses.map(courseLocations).join('\n')}
 
 async function main() {
   await ensureDirectory(coursesPath, 'courses');
-  await ensureDirectory(authPath, 'auth');
   const entries = await fs.readdir(coursesPath, {withFileTypes: true});
   const courses = [];
   const seen = new Set();
   for (const entry of entries) {
-    if (entry.name.startsWith('.')) continue;
+    if (entry.name.startsWith('.') || entry.name === 'settings') continue;
     const normalized = entry.name.toLowerCase();
     if (seen.has(normalized)) fail(`중복 수업 식별자입니다: ${entry.name}`);
     seen.add(normalized);

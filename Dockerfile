@@ -12,9 +12,8 @@ COPY --from=dependencies /usr/lib/libgcc_s.so.1 /usr/lib/libgcc_s.so.1
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
 RUN chmod +x scripts/docker-entrypoint.sh \
-    && mkdir -p /srv/site /srv/courses /srv/auth \
+    && mkdir -p /srv/site /srv/courses \
     && COURSES_PATH=/app/course-template \
-       AUTH_PATH=/app/auth-template \
        GENERATED_DIR=/app/generated \
        NGINX_CONFIG_PATH=/tmp/nginx.conf \
        SITE_ROOT=/tmp/site \

@@ -6,7 +6,7 @@ import process from 'node:process';
 import bcrypt from 'bcryptjs';
 
 const generatedDir = path.resolve(process.env.GENERATED_DIR || '/app/generated');
-const authPath = path.resolve(process.env.AUTH_PATH || '/srv/auth');
+const coursesPath = path.resolve(process.env.COURSES_PATH || '/srv/courses');
 const port = Number.parseInt(process.env.AUTH_PORT || '3000', 10);
 const ttlHours = Number.parseFloat(process.env.SESSION_TTL_HOURS || '12');
 const secureMode = process.env.SESSION_COOKIE_SECURE || 'auto';
@@ -23,7 +23,7 @@ const courseMap = new Map(courses.map((course) => [course.slug, course]));
 
 async function loadSecret() {
   if (process.env.SESSION_SECRET?.length >= 32) return process.env.SESSION_SECRET;
-  const secretFile = path.join(authPath, 'session.secret');
+  const secretFile = path.join(coursesPath, 'settings', 'session.secret');
   const stored = await fs.readFile(secretFile, 'utf8').catch(() => '');
   if (stored.trim().length >= 32) return stored.trim();
   console.warn('session.secret이 없어 재시작 시 로그인 세션이 초기화됩니다.');
@@ -138,7 +138,7 @@ function recordFailure(key) {
 
 async function validPassword(slug, password) {
   if (!password || password.length > 256) return false;
-  const content = await fs.readFile(path.join(authPath, `${slug}.htpasswd`), 'utf8').catch(() => '');
+  const content = await fs.readFile(path.join(coursesPath, slug, 'auth.htpasswd'), 'utf8').catch(() => '');
   const hashes = content.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map((line) => line.slice(line.indexOf(':') + 1));
   for (const hash of hashes) {
     if (await bcrypt.compare(password, hash)) return true;

@@ -20,22 +20,22 @@ async function freePort() {
 async function startServer(t) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'education-auth-'));
   const generated = path.join(root, 'generated');
-  const auth = path.join(root, 'auth');
+  const courses = path.join(root, 'courses');
   await fs.mkdir(generated);
-  await fs.mkdir(auth);
+  await fs.mkdir(path.join(courses, 'secure-course'), {recursive: true});
   await fs.writeFile(path.join(generated, 'runtime-courses.json'), JSON.stringify([
     {slug: 'secure-course', title: '보호 수업', access: 'protected', availableFrom: null, availableUntil: null},
     {slug: 'future-course', title: '예정 수업', access: 'public', availableFrom: '2999-01-01T00:00:00+09:00', availableUntil: null},
   ]));
   const hash = await bcrypt.hash('class-password', 4);
-  await fs.writeFile(path.join(auth, 'secure-course.htpasswd'), `student:${hash}\n`);
+  await fs.writeFile(path.join(courses, 'secure-course', 'auth.htpasswd'), `student:${hash}\n`);
   const port = await freePort();
   const child = spawn(process.execPath, [path.join(projectRoot, 'scripts', 'auth-server.mjs')], {
     cwd: projectRoot,
     env: {
       ...process.env,
       GENERATED_DIR: generated,
-      AUTH_PATH: auth,
+      COURSES_PATH: courses,
       AUTH_PORT: String(port),
       SESSION_SECRET: 'test-secret-with-at-least-thirty-two-characters',
       SESSION_TTL_HOURS: '12',

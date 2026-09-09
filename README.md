@@ -16,21 +16,21 @@ Synology NAS의 강의 문서, 배포 자료, 실습 코드를 웹으로 제공�
 
 ```text
 /volume1/docker/education-web/
-├─ courses/
-│  └─ gmtck-ota/
-│     ├─ course.json
-│     ├─ docs/
-│     │  └─ intro.md
-│     ├─ materials/
-│     │  └─ lecture-slides.zip
-│     └─ code/
-│        └─ practice-code.zip
-└─ auth/
-   ├─ gmtck-ota.htpasswd
-   └─ session.secret
+└─ courses/
+   ├─ settings/
+   │  └─ session.secret
+   └─ gmtck-ota/
+      ├─ course.json
+      ├─ auth.htpasswd
+      ├─ docs/
+      │  └─ intro.md
+      ├─ materials/
+      │  └─ lecture-slides.zip
+      └─ code/
+         └─ practice-code.zip
 ```
 
-수업 폴더 이름은 영문 소문자, 숫자, 하이픈만 사용할 수 있습니다. 폴더 안의 실제 파일과 하위 폴더 이름은 한글도 사용할 수 있습니다. [course-template](./course-template)를 복사해서 시작할 수 있습니다.
+수업 하나의 설정·문서·자료·코드·비밀번호를 같은 폴더에서 관리합니다. 수업 폴더 이름은 영문 소문자, 숫자, 하이픈만 사용할 수 있습니다. 폴더 안의 실제 파일과 하위 폴더 이름은 한글도 사용할 수 있습니다. `settings`는 사이트 공통 설정 전용 예약 폴더이며 수업 이름으로 사용할 수 없습니다. [course-template](./course-template)를 복사해서 시작할 수 있습니다.
 
 ## course.json 작성
 
@@ -81,21 +81,25 @@ Synology NAS의 강의 문서, 배포 자료, 실습 코드를 웹으로 제공�
 docker run --rm -it httpd:2.4-alpine htpasswd -nB student
 ```
 
-출력된 한 줄을 NAS의 `auth/<수업 폴더명>.htpasswd`에 저장합니다. 예를 들어 수업 폴더가 `gmtck-ota`이면 `gmtck-ota.htpasswd`입니다. 로그인 화면에서는 사용자 이름 없이 공용 비밀번호만 입력합니다.
+출력된 한 줄을 해당 수업 폴더의 `auth.htpasswd`에 저장합니다. 예를 들어 수업 폴더가 `courses/gmtck-ota`이면 `courses/gmtck-ota/auth.htpasswd`입니다. 로그인 화면에서는 사용자 이름 없이 공용 비밀번호만 입력합니다. 공개 수업에는 이 파일이 필요하지 않습니다.
 
 비밀번호를 교체한 뒤 컨테이너를 재생성하면 적용됩니다. 이미 로그인한 세션도 모두 끊으려면 `session.secret`도 교체하십시오.
 
-세션 서명 키는 충분히 긴 임의 문자열을 `auth/session.secret`에 한 줄로 저장하는 것을 권장합니다.
+세션 서명 키는 충분히 긴 임의 문자열을 `courses/settings/session.secret`에 한 줄로 저장하는 것을 권장합니다.
 
 ```bash
 openssl rand -base64 48
 ```
 
-이 파일이 없어도 실행은 되지만 컨테이너를 재시작할 때마다 모든 로그인 세션이 초기화됩니다. `auth` 폴더는 GitHub에 올리지 마십시오.
+이 파일이 없어도 실행은 되지만 컨테이너를 재시작할 때마다 모든 로그인 세션이 초기화됩니다. `auth.htpasswd`와 `session.secret`은 GitHub에 올리지 마십시오.
+
+### 기존 NAS 구조 옮기기
+
+기존 `auth/<수업 폴더명>.htpasswd` 파일은 같은 이름의 수업 폴더 안으로 옮기면서 이름을 `auth.htpasswd`로 변경합니다. 기존 `auth/session.secret`이 있다면 `courses/settings/session.secret`로 옮깁니다. 새 이미지로 프로젝트를 재생성하기 전까지는 기존 `auth` 폴더를 백업으로 남겨 두어도 됩니다.
 
 ## Synology Container Manager 배포
 
-1. File Station에서 `/volume1/docker/education-web/courses`와 `/volume1/docker/education-web/auth`를 만듭니다.
+1. File Station에서 `/volume1/docker/education-web/courses`를 만듭니다.
 2. 이 저장소의 [docker-compose.yaml](./docker-compose.yaml) 내용을 Container Manager의 새 프로젝트에 붙여 넣습니다.
 3. 같은 프로젝트 설정에서 아래 환경 값을 NAS 경로와 도메인에 맞게 지정합니다.
 4. 프로젝트를 빌드하고 컨테이너 상태가 정상인지 확인합니다.
@@ -110,7 +114,6 @@ Synology에서는 `pull_policy` 옵션을 추가하지 않습니다. 최신 이�
 | --- | --- | --- |
 | `WEB_PORT` | `8080` | NAS 내부에서 Reverse Proxy가 연결할 포트 |
 | `COURSES_PATH` | `/volume1/docker/education-web/courses` | 실제 수업 자료 경로 |
-| `AUTH_PATH` | `/volume1/docker/education-web/auth` | htpasswd와 세션 키 경로 |
 | `SITE_URL` | `https://education.example.com` | 외부 공개 주소 |
 | `SESSION_TTL_HOURS` | `12` | 로그인 세션 유효 시간 |
 | `SESSION_COOKIE_SECURE` | `auto` | HTTPS 여부 자동 판별. 일반적으로 변경하지 않음 |
@@ -122,7 +125,7 @@ Synology에서는 `pull_policy` 옵션을 추가하지 않습니다. 최신 이�
 
 ### NAS 콘텐츠 자동 갱신
 
-기본 설정에서는 60초마다 `courses`와 `auth` 폴더의 변경 여부를 확인합니다. 변경이 발견되면 15초 동안 파일 업로드가 멈췄는지 기다린 뒤 별도 공간에서 전체 설정 검증과 사이트 빌드를 수행합니다.
+기본 설정에서는 60초마다 `courses` 폴더의 변경 여부를 확인합니다. 변경이 발견되면 15초 동안 파일 업로드가 멈췄는지 기다린 뒤 별도 공간에서 전체 설정 검증과 사이트 빌드를 수행합니다. 각 수업 폴더의 `auth.htpasswd` 변경도 함께 감지합니다.
 
 - 검증 성공: 컨테이너가 스스로 한 번 재시작하고 새 콘텐츠를 반영합니다. 보통 변경 후 약 1~2분 안에 적용됩니다.
 - 검증 실패: 현재 서비스는 그대로 유지되며 오류만 컨테이너 로그에 남깁니다. 파일을 수정하면 다음 변경 때 다시 검사합니다.

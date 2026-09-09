@@ -13,12 +13,12 @@ const script = path.join(projectRoot, 'scripts', 'prepare-content.mjs');
 async function fixture({slug = 'course-one', access = 'public', malformed = false, config = {}} = {}) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'education-web-'));
   const courses = path.join(root, 'courses');
-  const auth = path.join(root, 'auth');
   const course = path.join(courses, slug);
+  await fs.mkdir(path.join(courses, 'settings'), {recursive: true});
+  await fs.writeFile(path.join(courses, 'settings', 'session.secret'), 'test-secret-with-at-least-thirty-two-characters');
   await fs.mkdir(path.join(course, 'docs'), {recursive: true});
   await fs.mkdir(path.join(course, 'materials'), {recursive: true});
   await fs.mkdir(path.join(course, 'code'), {recursive: true});
-  await fs.mkdir(auth, {recursive: true});
   await fs.writeFile(
     path.join(course, 'course.json'),
     malformed ? '{bad json' : JSON.stringify({title: '테스트 수업', description: '설명', order: 1, access, ...config}),
@@ -31,11 +31,11 @@ async function fixture({slug = 'course-one', access = 'public', malformed = fals
   await fs.writeFile(path.join(course, 'code', 'hello.py'), 'print("hello")');
   if (access === 'protected') {
     await fs.writeFile(
-      path.join(auth, `${slug}.htpasswd`),
+      path.join(course, 'auth.htpasswd'),
       'student:$2y$05$123456789012345678901uHh1F7Vb1mYOfE7pIzRzYHkP8mP5xSaa\n',
     );
   }
-  return {root, courses, auth, course};
+  return {root, courses, course};
 }
 
 async function run(paths) {
@@ -46,7 +46,6 @@ async function run(paths) {
     env: {
       ...process.env,
       COURSES_PATH: paths.courses,
-      AUTH_PATH: paths.auth,
       GENERATED_DIR: generated,
       STATIC_DIR: path.join(paths.root, 'static'),
       NGINX_CONFIG_PATH: nginx,
@@ -145,7 +144,7 @@ test('잘못된 slug와 JSON을 거부한다', async (t) => {
 test('보호 수업의 인증 파일 누락을 거부한다', async (t) => {
   const paths = await fixture({access: 'protected'});
   t.after(() => fs.rm(paths.root, {recursive: true, force: true}));
-  await fs.rm(path.join(paths.auth, 'course-one.htpasswd'));
+  await fs.rm(path.join(paths.course, 'auth.htpasswd'));
   await assert.rejects(run(paths), /htpasswd 파일이 없습니다/);
 });
 

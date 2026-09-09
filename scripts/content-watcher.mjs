@@ -8,7 +8,6 @@ import {pathToFileURL} from 'node:url';
 
 const projectRoot = process.cwd();
 const coursesPath = path.resolve(process.env.COURSES_PATH || '/srv/courses');
-const authPath = path.resolve(process.env.AUTH_PATH || '/srv/auth');
 const pollSeconds = Number.parseInt(process.env.CONTENT_POLL_SECONDS || '60', 10);
 const settleSeconds = Number.parseInt(process.env.CONTENT_SETTLE_SECONDS || '15', 10);
 
@@ -61,7 +60,6 @@ async function scanNested(target, label, rows) {
 export async function snapshotFingerprint(now = Date.now()) {
   const rows = [];
   await scan(coursesPath, 'courses', rows, now);
-  await scan(authPath, 'auth', rows, now);
   return crypto.createHash('sha256').update(rows.join('\n')).digest('hex');
 }
 
